@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KICKOFF</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  * { font-family: 'Noto Sans KR', sans-serif; -webkit-tap-highlight-color: transparent; }
+  body { background: #F2F4F6; }
+  ::-webkit-scrollbar { display: none; }
+
+  /* ---- Bottom Sheet Modal ---- */
+  .sheet-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    z-index: 100; opacity: 0; pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  .sheet-overlay.open { opacity: 1; pointer-events: all; }
+
+  .sheet {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%) translateY(100%);
+    width: 100%; max-width: 430px;
+    background: #fff; border-radius: 24px 24px 0 0;
+    z-index: 101; transition: transform 0.38s cubic-bezier(0.32,0.72,0,1);
+    max-height: 92dvh; display: flex; flex-direction: column;
+  }
+  .sheet.open { transform: translateX(-50%) translateY(0); }
+
+  /* ---- Page transitions ---- */
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ---- Card animation ---- */
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .card-anim { animation: cardIn 0.38s ease both; }
+
+  /* ---- Bookmark pulse ---- */
+  @keyframes bmPop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.4); }
+    70%  { transform: scale(0.9); }
+    100% { transform: scale(1); }
+  }
+  .bm-pop { animation: bmPop 0.32s ease; }
+
+  /* ---- Chip scroll hide scrollbar ---- */
+  .chip-scroll { overflow-x: auto; scrollbar-width: none; }
+  .chip-scroll::-webkit-scrollbar { display: none; }
+
+  /* ---- D-day pulse ---- */
+  @keyframes ddPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+  .dd-urgent { animation: ddPulse 1.4s ease-in-out infinite; }
+
+  /* ---- Search slide ---- */
+  .search-wrap { max-height: 0; overflow: hidden; transition: max-height 0.28s ease, padding 0.28s ease; padding: 0 16px; }
+  .search-wrap.open { max-height: 60px; padding: 6px 16px 10px; }
+
+  /* ---- Profile avatar gradient ---- */
+  .avatar-grad { background: linear-gradient(135deg, #10B981 0%, #3B82F6 100%); }
+
+  /* ---- Mypage bookmark card ---- */
+  @keyframes myCardIn {
+    from { opacity: 0; transform: translateX(-14px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .my-card-anim { animation: myCardIn 0.32s ease both; }
+
+  /* ---- Status badge ---- */
+  .badge-open   { background: #ECFDF5; color: #059669; }
+  .badge-soon   { background: #f83660; color: #ffffff; }
+  .badge-closed { background: #F3F4F6; color: #9CA3AF; }
+</style>
+</head>
+<body class="min-h-screen bg-[#F2F4F6]">
+
+<div id="app" class="mx-auto max-w-[430px] min-h-screen flex flex-col relative bg-[#F2F4F6] shadow-xl">
+
+  <div id="topTabs" class="sticky top-0 z-50 bg-white/90 backdrop-blur-[14px] border-b border-[#EAECEF]">
+    <div class="flex items-center px-5 py-4 justify-between h-[68px]">
+      
+      <div onclick="switchView('home')" class="flex items-center gap-2 cursor-pointer select-none">
+        <div id="headerBackArrow" class="hidden transition-transform active:scale-75">
+          <svg width="22" height="22" fill="none" stroke="#191F28" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </div>
+        <h1 id="tabTitle" class="text-[22px] font-extrabold text-[#191F28] leading-tight tracking-tight">KICKOFF</h1>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="searchToggleBtn" onclick="toggleSearch()" class="w-9 h-9 rounded-full bg-[#F2F4F6] flex items-center justify-center active:scale-90 transition-transform">
+          <svg width="18" height="18" fill="none" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        </button>
+<button id="headerMyPageBtn" onclick="switchView('mypage')" class="w-9 h-9 rounded-full bg-[#F2F4F6] flex items-center justify-center active:scale-90 transition-transform">
+  <svg id="headerDefaultAvatarSvg" width="18" height="18" fill="none" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+    <circle cx="12" cy="7" r="4"/>
+  </svg>
+</button>
+      </div>
+    </div>
+
+    <div class="search-wrap" id="searchWrap">
+      <div class="relative">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2" width="16" height="16" fill="none" stroke="#9CA3AF" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="searchInput" type="text" placeholder="대회명, 지역 검색..." oninput="applyFilters()"
+          class="w-full pl-9 pr-4 py-2.5 rounded-full bg-[#F2F4F6] text-[14px] text-[#191F28] placeholder-[#9CA3AF] outline-none focus:ring-2 focus:ring-[#191F28]/10" />
+      </div>
+    </div>
+
+    <div id="filterRow" class="chip-scroll flex gap-2 px-5 pb-3 pt-1"></div>
+  </div>
+
+  <div id="viewHome" class="view active flex-1 px-4 pt-3 pb-24 relative">
+    <div id="contestList" class="flex flex-col gap-3"></div>
+    <div id="emptyState" class="hidden flex-col items-center justify-center pt-20 pb-10 text-center">
+      <div class="w-16 h-16 rounded-full bg-[#F2F4F6] flex items-center justify-center mb-4 mx-auto">
+        <svg width="32" height="32" fill="none" stroke="#C8CDD4" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      </div>
+      <p class="text-[16px] font-bold text-[#191F28] mb-1">검색 결과가 없어요</p>
+      <p class="text-[14px] text-[#6B7684] mb-5">다른 키워드나 필터를 사용해보세요</p>
+      <button onclick="resetFilters()" class="px-5 py-2.5 rounded-full bg-[#191F28] text-white text-[14px] font-semibold">전체 보기</button>
+    </div>
+
+<a href="https://docs.google.com/forms/d/e/1FAIpQLScViiUriTdR1lONB9gVqFk-jCZbQgnVvc-z61vv3vbLiROCAg/viewform" target="_blank" class="fixed bottom-6 right-[calc(50%-195px)] max-w-[430px] z-40 bg-[#191F28] text-white px-5 py-3 rounded-full flex items-center gap-2 shadow-lg font-semibold text-[13px] active:scale-95 transition-transform decoration-none">
+  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  문의 · 대회 제보
+</a>
+  </div>
+
+  <div id="viewMypage" class="view flex-1 px-4 pt-4 pb-10">
+    <div id="authSection" class="bg-white rounded-[24px] p-6 shadow-sm border border-[#EAECEF]">
+      <h2 class="text-[20px] font-extrabold text-[#191F28] mb-1">선수 등록하기</h2>
+      <p class="text-[13px] text-[#6B7684] mb-6">KICKOFF 소식을 받고 즐겨찾기를 동기화하세요.</p>
+      
+      <div class="flex flex-col gap-4">
+        <div>
+          <label class="block text-[12px] font-bold text-[#4E5968] mb-1.5">프로필 사진 등록</label>
+          <div class="flex items-center gap-3">
+            <div id="regAvatarPreview" class="w-12 h-12 rounded-full avatar-grad flex items-center justify-center shrink-0 overflow-hidden">
+              <svg width="22" height="22" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <input id="regAvatar" type="file" accept="image/*" onchange="previewAvatar(this, 'regAvatarPreview')" class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-[#F2F4F6] file:text-[#191F28] hover:file:bg-gray-200 cursor-pointer" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-[12px] font-bold text-[#4E5968] mb-1.5">선수명 / 닉네임</label>
+          <input id="regName" type="text" placeholder="예: 홍길동" class="w-full px-4 py-3 bg-[#F2F4F6] rounded-[14px] text-[14px] outline-none focus:ring-2 focus:ring-[#191F28]/10" />
+        </div>
+        <div>
+          <label class="block text-[12px] font-bold text-[#4E5968] mb-1.5">선호 포지션</label>
+          <select id="regPosition" class="w-full px-4 py-3 bg-[#F2F4F6] rounded-[14px] text-[14px] outline-none text-[#191F28] font-medium">
+            <optgroup label="축구 포지션">
+              <option value="공격수 (FW)">공격수 (FW)</option>
+              <option value="미드필더 (MF)" selected>미드필더 (MF)</option>
+              <option value="수비수 (DF)">수비수 (DF)</option>
+              <option value="골키퍼 (GK)">골키퍼 (GK)</option>
+            </optgroup>
+            <optgroup label="풋살 포지션">
+              <option value="피보 (Pivo)">피보 (Pivo) - 전방 공격수</option>
+              <option value="아라 (Ala)">아라 (Ala) - 측면 미드필더</option>
+              <option value="픽소 (Fixo)">픽소 (Fixo) - 후방 수비수</option>
+              <option value="골레이로 (Goleiro)">골레이로 (Goleiro) - 골키퍼</option>
+            </optgroup>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[12px] font-bold text-[#4E5968] mb-1.5">활동 주지역</label>
+          <input id="regRegion" type="text" placeholder="예: 서울 성동구, 경기 수원" class="w-full px-4 py-3 bg-[#F2F4F6] rounded-[14px] text-[14px] outline-none focus:ring-2 focus:ring-[#191F28]/10" />
+        </div>
+        <button onclick="handleRegister()" class="w-full py-4 bg-[#191F28] text-white font-bold text-[15px] rounded-[14px] mt-2 active:scale-95 transition-transform">
+          선수 등록 완료
+        </button>
+      </div>
+    </div>
+
+    <div id="profileSection" class="hidden bg-white rounded-[20px] p-5 mb-6 shadow-sm border border-[#EAECEF]">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div id="usrAvatar" class="w-14 h-14 rounded-full avatar-grad flex items-center justify-center shrink-0 overflow-hidden bg-cover bg-center">
+            <svg id="defaultAvatarSvg" width="28" height="28" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <div>
+            <p id="usrName" class="text-[18px] font-bold text-[#191F28]">홍길동 선수</p>
+            <p id="usrMeta" class="text-[13px] text-[#6B7684] mt-0.5">아마추어 축구 / 미드필더</p>
+          </div>
+        </div>
+        <button onclick="openEditProfileSheet()" class="text-[12px] text-[#3B82F6] font-bold bg-[#EFF6FF] px-3 py-1.5 rounded-full active:scale-95 transition-transform">정보 수정</button>
+      </div>
+    </div>
+
+    <div id="bookmarkContainer" class="hidden flex-col">
+      <div class="flex items-center justify-between mb-3 px-1">
+        <p class="text-[16px] font-bold text-[#191F28]">즐겨찾기한 대회</p>
+        <span id="favBadge" class="text-[13px] font-semibold text-[#3B82F6] bg-[#EFF6FF] px-2 py-0.5 rounded-full">0개</span>
+      </div>
+      <div id="favList" class="flex flex-col gap-3"></div>
+      <div id="favEmpty" class="hidden flex-col items-center justify-center pt-12 text-center">
+        <div class="w-14 h-14 rounded-full bg-[#F2F4F6] flex items-center justify-center mb-3 mx-auto">
+          <svg width="24" height="24" fill="none" stroke="#C8CDD4" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        </div>
+        <p class="text-[15px] font-bold text-[#191F28] mb-1">즐겨찾기한 대회가 없어요</p>
+        <p class="text-[13px] text-[#6B7684] mb-4">관심 있는 대회 카드의 별표를 눌러 저장해 보세요.</p>
+        <button onclick="switchView('home')" class="px-5 py-2 rounded-full bg-[#191F28] text-white text-[13px] font-semibold">대회 둘러보기</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="sheet-overlay" id="sheetOverlay" onclick="closeSheet()"></div>
+<div class="sheet" id="sheetEl">
+  <div class="flex items-center justify-between px-5 py-4 border-b border-[#F2F4F6] bg-white shrink-0">
+    <div class="flex items-center gap-3">
+      <button onclick="closeSheet()" class="w-9 h-9 rounded-full bg-[#F2F4F6] flex items-center justify-center active:scale-90 transition-transform">
+        <svg width="18" height="18" fill="none" stroke="#191F28" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M19 12H5m7-7-7 7 7 7"/></svg>
+      </button>
+      <span id="sheetMenuTitle" class="text-[15px] font-bold text-[#191F28]">대회 정보 요강</span>
+    </div>
+  </div>
+  
+  <div id="sheetScrollArea" class="flex-1 overflow-y-auto px-5 pt-4 pb-28">
+    <div id="sheetContent"></div>
+  </div>
+
+  <div id="sheetFixedFooter" class="absolute bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-md border-t border-[#F2F4F6] flex gap-3 z-50">
+  </div>
+</div>
+
+<script>
+// ─── DATA ────────────────────────────────────────────────────────
+const FILTERS = [
+  { id: 'all',     label: '전체' },
+  { id: 'women',   label: '여성부' },
+  { id: 'man',     label: '남성부' },
+  { id: 'youth',   label: '유소년' },
+  { id: 'mixed',   label: '혼성' },
+];
+
+const CONTESTS = [
+  {
+    id: 1,
+    category: 'women',
+    categoryLabel: '여성부',
+    name: '더 퍼스트 위필드 나이트 컵',
+    location: '구리 언더플레이 풋살파크',
+    date: '2026. 06. 27',
+    matchType: '풀리그 진행',
+    participants: '참가비 팀당 25만원',
+    accent: '#EC4899',
+    status: 'open',
+    prize: '상금 10만원 + 팀 유니폼제작',
+    deadline: '선착순',
+    contact: '위고하이',
+    detail: '6월 27일 토요일 여름 밤, 가장 시원하게 뛰는 순간! 더 퍼스트 위필드 나이크업 여자 풋살대회 참가팀을 모집합니다.',
+    mainImg: 'https://i.ibb.co/kgZVBVQP/IMG-3641.jpg',
+    subImg1: 'https://i.ibb.co/20w8646B/Kakao-Talk-Photo-2026-05-20-15-16-07-1.jpg', // 💡 첫 필드 중복 버그 수정처리
+    applyLink: 'https://docs.google.com/forms/d/1xEO_ri4pL1ZqRu_OzUAJBEJl4EU4PY_pTWTRApUdGbQ/edit',
+    contactLink: 'https://www.instagram.com/wghfutsal/' // 💡 문의 링크 데이터 연동 추가
+  },
+  {
+    id: 2,
+    category: 'mixed',
+    categoryLabel: '혼성',
+    name: '2026 풋투풋컵 혼성 풋살대회 with Senda',
+    location: '로꼬풋살스타디움 고양터미널점(백석역)',
+    date: '2026. 06. 13',
+    matchType: '5대5',
+    participants: '참가비 팀당 30만원',
+    accent: '#3B82F6',
+    status: 'open',
+    prize: '우승 상금 50만원 + 트로피 + 센다 상품권',
+    deadline: '선착순',
+    contact: '풋투풋',
+    detail: '2026년 첫 혼성 풋살대회! 치열한 경기 만족스러운 대회 경험! 혼성, 풋투풋과 함께',
+    mainImg: 'https://i.ibb.co/5QHZ1MX/image.jpg',
+    subImg1: 'https://i.ibb.co/Jwpx8HDG/1.jpg',
+    subImg2: 'https://i.ibb.co/yFpNcttQ/2.jpg',
+    subImg3: 'https://i.ibb.co/67qQsJgT/3.jpg',
+    subImg4: 'https://i.ibb.co/t6NZdrR/4.jpg',
+    applyLink: 'https://foot2fut.com/news/1778217300335crwe',
+    contactLink: 'https://www.instagram.com/foot2fut_woman/'
+  },
+  {
+    id: 3,
+    category: 'women',
+    categoryLabel: '여성부',
+    name: '수원삼성 여자풋살대회 ‘블루시스컵 2026’',
+    location: '수원 에스빌드 풋살파크',
+    date: '2026. 05. 24',
+    matchType: '6대6',
+    participants: '참가비 무료',
+    accent: '#EC4899',
+    status: 'closed',
+    prize: '우승 상금 100만원',
+    deadline: '2026. 05. 13',
+    contact: '수원삼성 블루윙즈',
+    detail: '수원삼성과 함께하는 6 VS 6 아마추어 여자 풋살대회, 블루시스컵 2026 참가 신청이 5월 11일(월)부터 시작됩니다.',
+    mainImg: 'https://i.ibb.co/B2mgpTRJ/Kakao-Talk-Photo-2026-05-11-16-32-58.png',
+    subImg1: 'https://i.ibb.co/4ZfMzj50/2026-05-21-164741.png',
+    subImg2: 'https://i.ibb.co/84KQnFf8/2026-05-21-164814.png',
+    subImg3: 'https://i.ibb.co/93C1xrH4/2026-05-21-164819.png',
+    applyLink: 'https://www.instagram.com/p/DYMAMyNkb-U/?utm_source=ig_web_copy_link&igsh=NTc4MTIwNjQ2YQ==',
+    contactLink: 'https://www.instagram.com/suwonsamsungbluewings/'
+  },
+  {
+    id: 4,
+    category: 'youth',
+    categoryLabel: '유소년',
+    name: '제5회 핏그라운드배 유소년 축구대회',
+    location: '핏르가운드 축구클럽(풋살장)',
+    date: '2026. 06. 07',
+    matchType: '7대7 풀리그',
+    participants: '참가비 인당 45,000원',
+    accent: '#F59E0B',
+    status: 'soon',
+    prize: '메달 + 참가 기념품',
+    deadline: '선착순',
+    contact: '핏그라운드 축구클럽',
+    detail: '🚨경기도 접근성 좋은 위치!🚨 평택 화성 아산 천안 수원 오산 용인 성남 서울 ​ 🚨팀 정원 마감임박🚨 ',
+    mainImg: 'https://i.ibb.co/rf558Kqj/5.jpg',
+    subImg1: 'https://i.ibb.co/rf558Kqj/5.jpg',
+    applyLink: 'fitground@naver.com',
+    contactLink: 'tel:010-2664-1435'
+  },
+{
+    id: 5,
+    category: 'man',
+    categoryLabel: '남성',
+    name: '⚽ UNION CUP FOR AMATEUR ⚽',
+    location: '안양새물공원',
+    date: '2026. 06. 03',
+    matchType: '6대6',
+    participants: '참가비 인당 3만원',
+    accent: '#6366F1',
+    status: 'open',
+    prize: '우승 상금 30만원',
+    deadline: '선착순',
+    contact: '-',
+    detail: '⚽ UNION CUP FOR AMATEUR ⚽ 순수 아마추어들을 위한 6vs6 풋살대회, UNION CUP 참가팀을 모집합니다 !',
+    mainImg: 'https://i.ibb.co/DHHpcDrd/Kakao-Talk-Photo-2026-05-26-09-52-00.png',
+    subImg1: 'https://i.ibb.co/DHHpcDrd/Kakao-Talk-Photo-2026-05-26-09-52-00.png',
+    applyLink: 'https://form.naver.com/response/PHK6xI8Z2mkHT0IMtg0PFw',
+    contactLink: 'none'
+  },
+];
+
+// ─── D-DAY AUTOMATIC ENGINE ──────────────────────────────────
+function calculateDday(dateString) {
+  const cleanStr = dateString.replace(/\./g, '-').replace(/\s/g, '');
+  const targetDate = new Date(cleanStr);
+  const today = new Date();
+  
+  targetDate.setHours(0,0,0,0);
+  today.setHours(0,0,0,0);
+  
+  const diffTime = targetDate - today;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+}
+
+function getDdayLabel(days) {
+  if (days === 0) return 'D-DAY';
+  if (days > 0) return `D-${days}`;
+  return `D+${Math.abs(days)}`;
+}
+
+// ─── USER AUTH STATE ──────────────────────────────────────────────
+let isRegistered = false;
+let userData = { name: '', position: '', region: '', avatarDataUrl: '' };
+
+// ─── AVATAR IMAGE PREVIEW LOGIC ───────────────────────────────────
+function previewAvatar(input, previewTargetId) {
+  const file = input.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const previewBox = document.getElementById(previewTargetId);
+      previewBox.innerHTML = ''; 
+      previewBox.style.backgroundImage = `url('${e.target.result}')`;
+      previewBox.style.backgroundSize = 'cover';
+      previewBox.style.backgroundPosition = 'center';
+      
+      userData.avatarDataUrl = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+// ─── REGISTER PROCESS ──────────────────────────────────────────────
+function handleRegister() {
+  const nameInput = document.getElementById('regName').value.trim();
+  const posSelect = document.getElementById('regPosition').value;
+  const regInput = document.getElementById('regRegion').value.trim();
+
+  if(!nameInput || !regInput) {
+    alert('모든 가입 항목을 완벽히 입력해 주세요!');
+    return;
+  }
+
+  isRegistered = true;
+  userData.name = nameInput;
+  userData.position = posSelect;
+  userData.region = regInput;
+
+  syncProfileDOM();
+
+  document.getElementById('authSection').style.display = 'none';
+  document.getElementById('profileSection').classList.remove('hidden');
+  document.getElementById('bookmarkContainer').classList.remove('hidden');
+  document.getElementById('bookmarkContainer').classList.add('flex');
+
+  renderFavList();
+  updateMyStats();
+}
+
+function syncProfileDOM() {
+  document.getElementById('usrName').textContent = `${userData.name} 선수`;
+  document.getElementById('usrMeta').textContent = `${userData.region} / ${userData.position}`;
+
+  const usrAvatarContainer = document.getElementById('usrAvatar');
+  const defaultSvg = document.getElementById('defaultAvatarSvg');
+  const headerMyPageBtn = document.getElementById('headerMyPageBtn');
+  
+  if (userData.avatarDataUrl) {
+    if(defaultSvg) defaultSvg.style.display = 'none';
+    usrAvatarContainer.style.backgroundImage = `url('${userData.avatarDataUrl}')`;
+    headerMyPageBtn.innerHTML = '';
+    headerMyPageBtn.style.backgroundImage = `url('${userData.avatarDataUrl}')`;
+  } else {
+    if(defaultSvg) defaultSvg.style.display = 'block';
+    usrAvatarContainer.style.backgroundImage = 'none';
+    headerMyPageBtn.style.backgroundImage = 'none';
+    headerMyPageBtn.innerHTML = `<svg id="headerDefaultAvatarSvg" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+  }
+}
+
+// ─── 회원정보 수정 모달 인터페이스 구현 ──────────────────────────────
+function openEditProfileSheet() {
+  document.getElementById('sheetMenuTitle').textContent = '회원정보 수정';
+  
+  document.getElementById('sheetScrollArea').scrollTo(0,0);
+  document.getElementById('sheetContent').innerHTML = `
+    <div class="flex flex-col gap-4">
+      <div>
+        <label class="block text-[12px] font-bold text-[#4E5968] mb-1.5">프로필 사진 변경</label>
+        <div class="flex items-center gap-3">
+          <div id="editAvatarPreview" class="w-12 h-12 rounded-full avatar-grad flex items-center justify-center shrink-0 overflow-hidden bg-cover bg-center"
+               style="background-image: ${userData.avatarDataUrl ? `url('${userData.avatarDataUrl}')` : 'none'}">
+            ${userData.avatarDataUrl ? '' : `<svg width="22" height="22" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`}
+          </div>
+          <input id="editAvatar" type="file" accept="image/*" onchange="previewAvatar(this, 'editAvatarPreview')" class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-[#F2F4F6] file:text-[#191F28] hover:file:bg-gray-200 cursor-pointer" />
+        </div>
+      </div>
+      <div>
+        <label class="block text-[12px] font-bold text-[#4E5968] mb-1.5">선수명 / 닉네임</label>
+        <input id="editName" type="text" value="${userData.name}" class="w-full px-4 py-3 bg-[#F2F4F6] rounded-[14px] text-[14px] outline-none focus:ring-2 focus:ring-[#191F28]/10" />
+      </div>
+      <div>
+        <label class="block text-[12px] font-bold text-[#4E5968] mb-1.5">선호 포지션</label>
+        <select id="editPosition" class="w-full px-4 py-3 bg-[#F2F4F6] rounded-[14px] text-[14px] outline-none text-[#191F28] font-medium">
+          <optgroup label="축구 포지션">
+            <option value="공격수 (FW)" ${userData.position === '공격수 (FW)' ? 'selected' : ''}>공격수 (FW)</option>
+            <option value="미드필더 (MF)" ${userData.position === '미드필더 (MF)' ? 'selected' : ''}>미드필더 (MF)</option>
+            <option value="수비수 (DF)" ${userData.position === '수비수 (DF)' ? 'selected' : ''}>수비수 (DF)</option>
+            <option value="골키퍼 (GK)" ${userData.position === '골키퍼 (GK)' ? 'selected' : ''}>골키퍼 (GK)</option>
+          </optgroup>
+          <optgroup label="풋살 포지션">
+            <option value="피보 (Pivo)" ${userData.position === '피보 (Pivo)' ? 'selected' : ''}>피보 (Pivo) - 전방 공격수</option>
+            <option value="아라 (Ala)" ${userData.position === '아라 (Ala)' ? 'selected' : ''}>아라 (Ala) - 측면 미드필더</option>
+            <option value="픽소 (Fixo)" ${userData.position === '픽소 (Fixo)' ? 'selected' : ''}>픽소 (Fixo) - 후방 수비수</option>
+            <option value="골레이로 (Goleiro)" ${userData.position === '골레이로 (Goleiro)' ? 'selected' : ''}>골레이로 (Goleiro) - 골키퍼</option>
+          </optgroup>
+        </select>
+      </div>
+      <div>
+        <label class="block text-[12px] font-bold text-[#4E5968] mb-1.5">활동 주지역</label>
+        <input id="editRegion" type="text" value="${userData.region}" class="w-full px-4 py-3 bg-[#F2F4F6] rounded-[14px] text-[14px] outline-none focus:ring-2 focus:ring-[#191F28]/10" />
+      </div>
+      <button onclick="handleUpdateProfile()" class="w-full py-4 bg-[#191F28] text-white font-bold text-[15px] rounded-[14px] mt-2 active:scale-95 transition-transform">
+        수정 완료
+      </button>
+      
+      <div class="mt-8 pt-4 border-t border-[#F2F4F6] flex justify-center">
+        <button onclick="handleLogout()" class="text-[12px] text-[#F83660] font-medium opacity-60 hover:opacity-100 transition-opacity">
+          KICKOFF 선수 탈퇴 탈퇴하기
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('sheetFixedFooter').innerHTML = '';
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById('sheetEl').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function handleUpdateProfile() {
+  const nameInput = document.getElementById('editName').value.trim();
+  const posSelect = document.getElementById('editPosition').value;
+  const regInput = document.getElementById('editRegion').value.trim();
+
+  if(!nameInput || !regInput) {
+    alert('모든 수정 항목 내용을 입력해 주세요!');
+    return;
+  }
+
+  userData.name = nameInput;
+  userData.position = posSelect;
+  userData.region = regInput;
+
+  syncProfileDOM();
+  closeSheet();
+}
+
+function handleLogout() {
+  if(!confirm('선수 등록을 해제(탈퇴)하시겠습니까? 기록이 모두 소멸됩니다.')) return;
+  isRegistered = false;
+  userData = { name: '', position: '', region: '', avatarDataUrl: '' };
+  
+  document.getElementById('regName').value = '';
+  document.getElementById('regRegion').value = '';
+  document.getElementById('regAvatar').value = '';
+  
+  const regPreviewBox = document.getElementById('regAvatarPreview');
+  regPreviewBox.style.backgroundImage = 'none';
+  regPreviewBox.innerHTML = `<svg width="22" height="22" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+
+  closeSheet();
+  document.getElementById('authSection').style.display = 'block';
+  document.getElementById('profileSection').classList.add('hidden');
+  document.getElementById('bookmarkContainer').classList.add('hidden');
+}
+
+// ─── CORE APP STATE ───────────────────────────────────────────────
+let activeFilter  = 'all';
+let searchQuery   = '';
+let favorites     = new Set();
+let searchOpen    = false;
+let currentView   = 'home';
+let animatingBm   = new Set();
+
+// ─── FILTER CHIPS ─────────────────────────────────────────────────
+function renderFilters() {
+  const row = document.getElementById('filterRow');
+  row.innerHTML = FILTERS.map(f => {
+    const active = f.id === activeFilter;
+    return `<button
+      onclick="setFilter('${f.id}')"
+      class="shrink-0 px-4 py-2 rounded-full text-[13px] font-semibold whitespace-nowrap transition-all duration-200
+        ${active ? 'bg-[#191F28] text-white shadow-sm' : 'bg-[#F2F4F6] text-[#4E5968]'}"
+    >${f.label}</button>`;
+  }).join('');
+}
+
+function setFilter(id) {
+  activeFilter = id;
+  renderFilters();
+  applyFilters();
+}
+
+function applyFilters() {
+  searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+  let list = CONTESTS;
+  if (activeFilter !== 'all') list = list.filter(c => c.category === activeFilter);
+  if (searchQuery) list = list.filter(c =>
+    c.name.toLowerCase().includes(searchQuery) ||
+    c.location.toLowerCase().includes(searchQuery)
+  );
+  renderContestList(list);
+}
+
+function resetFilters() {
+  activeFilter = 'all';
+  searchQuery = '';
+  document.getElementById('searchInput').value = '';
+  renderFilters();
+  applyFilters();
+}
+
+// ─── RENDER CONTEST CARDS ─────────────────────────────────────────
+function renderContestList(list) {
+  const container = document.getElementById('contestList');
+  const empty     = document.getElementById('emptyState');
+  if (!list.length) {
+    container.innerHTML = '';
+    empty.classList.remove('hidden');
+    empty.classList.add('flex');
+    return;
+  }
+  empty.classList.add('hidden');
+  empty.classList.remove('flex');
+
+  container.innerHTML = list.map((c, i) => {
+    const isFav    = favorites.has(c.id);
+    
+    const daysLeft = calculateDday(c.date); 
+    const isUrgent = daysLeft <= 3 && daysLeft >= 0;
+    const ddLabel  = getDdayLabel(daysLeft);
+    
+    const statusMap = { open: ['모집중','badge-open'], soon: ['마감임박','badge-soon'], closed: ['모집마감','badge-closed'] };
+    const [statusLabel, statusClass] = statusMap[c.status] || statusMap.open;
+
+    return `
+    <div class="card-anim bg-white rounded-[20px] p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-[#EAECEF] cursor-pointer active:scale-[0.985] transition-all"
+         style="animation-delay:${i * 0.06}s"
+         onclick="openSheet(${c.id})">
+      <div class="flex items-start justify-between mb-3">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="px-2.5 py-1 rounded-full text-[12px] font-bold ${isUrgent ? 'dd-urgent' : ''}"
+            style="background:#FEECEC; color:#FF4B4B;">${ddLabel}</span>
+          <span class="px-2.5 py-1 rounded-full text-[12px] font-semibold ${statusClass}">${statusLabel}</span>
+          <span class="px-2.5 py-1 rounded-full text-[12px] font-semibold"
+            style="background:${c.accent}12; color:${c.accent};">${c.categoryLabel}</span>
+        </div>
+        <button
+          id="bm-${c.id}"
+          onclick="event.stopPropagation(); toggleBookmark(${c.id})"
+          class="w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0 ml-2"
+          style="background: ${isFav ? '#EFF6FF' : '#F2F4F6'}">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="${isFav ? '#3B82F6' : 'none'}"
+            stroke="${isFav ? '#3B82F6' : '#9CA3AF'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          </svg>
+        </button>
+      </div>
+
+      <h2 class="text-[17px] font-bold text-[#191F28] leading-snug mb-3">${c.name}</h2>
+
+      <div class="flex flex-col gap-1.5">
+        <div class="flex items-center gap-2">
+          <svg width="14" height="14" fill="none" stroke="#9CA3AF" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span class="text-[14px] text-[#6B7684]">${c.location}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <svg width="14" height="14" fill="none" stroke="#9CA3AF" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          <span class="text-[14px] text-[#6B7684]">${c.date}</span>
+        </div>
+        <div class="flex items-center gap-3 mt-1 pt-2 border-t border-[#F2F4F6]">
+          <div class="flex items-center gap-1.5">
+            <svg width="14" height="14" fill="none" stroke="${c.accent}" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+            <span class="text-[13px] font-semibold" style="color:${c.accent}">${c.matchType}</span>
+          </div>
+          <span class="text-[#E5E7EB]">|</span>
+          <div class="flex items-center gap-1.5">
+            <svg width="14" height="14" fill="none" stroke="#9CA3AF" stroke-width="1.8" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <span class="text-[13px] text-[#6B7684]">${c.participants}</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── BOOKMARK ─────────────────────────────────────────────────────
+function toggleBookmark(id) {
+  if (favorites.has(id)) {
+    favorites.delete(id);
+  } else {function syncProfileDOM() {
+  document.getElementById('usrName').textContent = `${userData.name} 선수`;
+  document.getElementById('usrMeta').textContent = `${userData.region} / ${userData.position}`;
+
+  const usrAvatarContainer = document.getElementById('usrAvatar');
+  const defaultSvg = document.getElementById('defaultAvatarSvg');
+  const headerMyPageBtn = document.getElementById('headerMyPageBtn');
+  
+  if (userData.avatarDataUrl) {
+    if(defaultSvg) defaultSvg.style.display = 'none';
+    usrAvatarContainer.style.backgroundImage = `url('${userData.avatarDataUrl}')`;
+    headerMyPageBtn.innerHTML = '';
+    headerMyPageBtn.style.backgroundImage = `url('${userData.avatarDataUrl}')`;
+  } else {
+    // 💡 이 부분을 아래 코드로 교체하여 로그아웃/미등록 상태 시 회색 라인 아이콘 스타일 유지
+    if(defaultSvg) defaultSvg.style.display = 'block';
+    usrAvatarContainer.style.backgroundImage = 'none';
+    headerMyPageBtn.style.backgroundImage = 'none';
+    headerMyPageBtn.innerHTML = `<svg id="headerDefaultAvatarSvg" width="18" height="18" fill="none" stroke="#191F28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+  }
+}
+    favorites.add(id);
+  }
+  const btn = document.getElementById('bm-' + id);
+  if (btn && !animatingBm.has(id)) {
+    animatingBm.add(id);
+    btn.classList.add('bm-pop');
+    setTimeout(() => { btn.classList.remove('bm-pop'); animatingBm.delete(id); }, 350);
+  }
+  applyFilters();
+  renderFavList();
+  updateMyStats();
+}
+
+// ─── FAVORITE LIST (MYPAGE) ────────────────────────────────────────
+function renderFavList() {
+  const container = document.getElementById('favList');
+  const empty     = document.getElementById('favEmpty');
+  const favItems  = CONTESTS.filter(c => favorites.has(c.id));
+
+  if (!favItems.length) {
+    container.innerHTML = '';
+    empty.classList.remove('hidden');
+    empty.classList.add('flex');
+    return;
+  }
+  empty.classList.add('hidden');
+  empty.classList.remove('flex');
+
+  container.innerHTML = favItems.map((c, i) => {
+    const daysLeft = calculateDday(c.date);
+    const ddLabel  = getDdayLabel(daysLeft);
+    
+    return `
+    <div class="my-card-anim bg-white rounded-[16px] p-4 border border-[#EAECEF] shadow-[0_1px_4px_rgba(0,0,0,0.02)] cursor-pointer active:scale-[0.98] transition-transform flex items-center gap-3"
+         style="animation-delay:${i*0.05}s"
+         onclick="openSheet(${c.id})">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background:${c.accent}12;">
+        <svg width="18" height="18" fill="none" stroke="${c.accent}" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-[14px] font-bold text-[#191F28] truncate">${c.name}</p>
+        <p class="text-[12px] text-[#6B7684] mt-0.5">${c.date} · ${c.matchType}</p>
+      </div>
+      <div class="flex items-center gap-1 shrink-0">
+        <span class="text-[12px] font-bold" style="color:#FF4B4B;">${ddLabel}</span>
+        <svg width="14" height="14" fill="none" stroke="#C8CDD4" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+    </div>
+  `;
+  }).join('');
+}
+
+function updateMyStats() {
+  const bBadge = document.getElementById('favBadge');
+  if(bBadge) bBadge.textContent = `${favorites.size}개`;
+}
+
+// ─── DETAIL SHEET ─────────────────────────────────────────────────
+function openSheet(id) {
+  const c = CONTESTS.find(x => x.id === id);
+  if (!c) return;
+  
+  const daysLeft = calculateDday(c.date);
+  const ddLabel  = getDdayLabel(daysLeft);
+  
+  document.getElementById('sheetMenuTitle').textContent = '대회 정보 요강';
+  document.getElementById('sheetScrollArea').scrollTo(0,0);
+
+  const mainImageHtml = c.mainImg 
+    ? `<img src="${c.mainImg}" class="w-full h-auto rounded-[20px] mb-5 border border-[#EAECEF] block shadow-sm" alt="메인포스터">`
+    : `<div class="w-full aspect-square rounded-[20px] mb-5 bg-gradient-to-br from-[#10B981]/20 to-[#3B82F6]/20 border border-[#EAECEF] flex flex-col items-center justify-center gap-2 overflow-hidden relative">
+        <svg width="45" height="45" fill="none" stroke="${c.accent}" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2v20M2 12h20M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0"/></svg>
+       </div>`;
+
+  // 💡 [버그 완전 박멸] 3장이 다 채워져 있지 않아도 들어있는 장수만큼 유연하게 뿌리는 갤러리 빌더
+let subImagesHtml = '';
+  if (c.subImg1 || c.subImg2 || c.subImg3) {
+    subImagesHtml = `<div class="flex flex-col gap-4">`;
+    if (c.subImg1) subImagesHtml += `<img src="${c.subImg1}" class="w-full h-auto rounded-[16px] border border-[#EAECEF] block shadow-sm" alt="시설1">`;
+    
+    // 추가 서브 이미지 번들링 분기 처리
+    if (c.subImg2 || c.subImg3) {
+      subImagesHtml += `<div id="extendedGallery" class="hidden flex-col gap-4">`;
+      if (c.subImg2) subImagesHtml += `<img src="${c.subImg2}" class="w-full h-auto rounded-[16px] border border-[#EAECEF] block shadow-sm" alt="시설2">`;
+      if (c.subImg3) subImagesHtml += `<img src="${c.subImg3}" class="w-full h-auto rounded-[16px] border border-[#EAECEF] block shadow-sm" alt="시설3">`;
+      subImagesHtml += `</div>`;
+      
+      subImagesHtml += `
+        <button id="galleryMoreBtn" onclick="expandGallery()" class="w-full py-4 mt-1 rounded-[16px] bg-[#F2F4F6] text-[#4E5968] text-[14px] font-bold active:scale-95 transition-transform flex items-center justify-center gap-1.5 shadow-sm">
+          이미지 더보기
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+      `;
+    }
+    subImagesHtml += `</div>`;
+  } else {
+    subImagesHtml = `<div class="w-full h-24 rounded-[16px] bg-[#F2F4F6] border border-[#EAECEF] flex items-center justify-center text-[12px] text-[#9CA3AF] font-bold">등록된 상세 이미지가 없습니다.</div>`;
+  } 
+
+  // 💡 [서브 타이틀 일괄 완벽 마크업 복구] 명확한 정보 인덱싱 지원 및 20px(gap-5) 적용
+  document.getElementById('sheetContent').innerHTML = `
+    ${mainImageHtml}
+
+    <div class="flex flex-wrap gap-2 mb-4">
+      <span class="px-3 py-1 rounded-full text-[12px] font-bold" style="background:#FEECEC;color:#FF4B4B;">${ddLabel}</span>
+      <span class="px-3 py-1 rounded-full text-[12px] font-semibold" style="background:${c.accent}12;color:${c.accent};">${c.categoryLabel}</span>
+    </div>
+
+    <div class="flex items-start justify-between gap-3 mb-5">
+      <h2 class="text-[20px] font-extrabold text-[#191F28] leading-snug flex-1">${c.name}</h2>
+    </div>
+
+    <div class="bg-[#F8F9FA] rounded-[16px] p-4 mb-5 flex flex-col gap-4 border border-[#F2F4F6]">
+      ${[
+        ['일시', c.date, '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>'],
+        ['장소', c.location, '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle>'],
+        ['접수 마감', c.deadline, '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>'],
+        ['경기 방식', c.matchType, '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>'],
+        ['시상 / 참가비', c.participants, '<line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>'],
+        ['상금 / 시상', c.prize, '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>'],
+        ['문의', c.contact, '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.17 12 19.79 19.79 0 0 1 7.1 3.37 2 2 0 0 1 9.09 1h3a2 2 0 0 1 2 1.72"></path>'],
+      ].map(([label, val, svgPath]) => `
+        <div class="flex items-start gap-5">
+          <div class="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5" style="background:${c.accent}12;">
+            <svg width="14" height="14" fill="none" stroke="${c.accent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">${svgPath}</svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-[11px] text-[#9CA3AF] font-bold uppercase tracking-wide mb-0.5">${label}</p>
+            <p class="text-[14px] font-semibold text-[#191F28] leading-tight break-all">${val}</p>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="mb-6">
+      <p class="text-[12px] font-bold text-[#8B95A1] mb-2 uppercase tracking-wider">대회 소개</p>
+      <p class="text-[14px] text-[#4E5968] leading-relaxed font-medium">${c.detail}</p>
+    </div>
+
+    <div class="mb-4">
+      ${subImagesHtml}
+    </div>
+  `;
+
+// 💡 [대회 문의하기 동적 링킹 스위치 완벽 적용]
+document.getElementById('sheetFixedFooter').innerHTML = `
+  <button onclick="handleApplyContest('${c.contactLink || '#'}')" 
+          class="flex-1 py-4 rounded-[16px] border-2 border-[#E5E7EB] text-[#6B7684] text-[14px] font-bold active:bg-gray-50 transition-colors bg-white shadow-sm">
+    대회 문의하기
+  </button>
+  <button onclick="handleApplyContest('${c.applyLink}')" 
+          class="flex-2 flex-1 py-4 rounded-[16px] text-white text-[14px] font-bold active:opacity-90 transition-opacity shadow-sm"
+          style="background: ${c.accent}; flex: 1.5;">
+    참가 신청하기
+  </button>
+`;
+
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById('sheetEl').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function expandGallery() {
+  const extGallery = document.getElementById('extendedGallery');
+  const btn = document.getElementById('galleryMoreBtn');
+  if(extGallery) {
+    extGallery.classList.remove('hidden');
+    extGallery.classList.add('flex');
+    if(btn) btn.style.display = 'none'; 
+  }
+}
+
+function handleApplyContest(link) {
+  // 1. 링크가 없거나 'none'인 경우 처리
+  if (!link || link === '#' || link === 'none') {
+    alert('등록된 바로가기 채널이 없습니다. 요강 본문을 참고해 주세요.');
+    return;
+  }
+
+  // 2. 이메일 주소인 경우 (@가 포함된 경우)
+  if (link.includes('@') && !link.startsWith('http')) {
+    alert(`이메일로 접수 및 문의가 가능한 대회입니다.
+    접수 이메일:\n${link}\n\n이메일 주소를 복사하여 메일을 보내주세요!`);
+    return;
+  }
+
+  // 3. 전화번호인 경우 (tel: 주소이거나 숫자로 시작하는 경우)
+  if (link.startsWith('tel:') || /^[0-9-]/.test(link)) {
+    const phoneNumber = link.replace('tel:', '');
+    // 모바일 환경을 위해 실제 전화 걸기 기능도 수행하면서 팝업 안내
+    if (confirm(`대회 주최측으로 전화를 연결하시겠습니까?\n\n📞 문의처: ${phoneNumber}`)) {
+      window.location.href = link.startsWith('tel:') ? link : 'tel:' + link;
+    }
+    return;
+  }
+
+  // 4. 일반 웹사이트 링크인 경우 (기존 로직 유지)
+  window.open(link, '_blank');
+}
+
+function closeSheet() {
+  document.getElementById('sheetOverlay').classList.remove('open');
+  document.getElementById('sheetEl').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// ─── VIEW SWITCHING (DYNAMIC TEXT & BACK ARROW CONTROLLER) ───────
+function switchView(view) {
+  currentView = view;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  
+  const tabTitleEl = document.getElementById('tabTitle');
+  const backArrowEl = document.getElementById('headerBackArrow');
+  
+  if (view === 'home') {
+    document.getElementById('viewHome').classList.add('active');
+    document.getElementById('filterRow').style.display = '';
+    
+    tabTitleEl.textContent = 'KICKOFF';
+    backArrowEl.classList.add('hidden');
+    
+    applyFilters();
+  } else {
+    document.getElementById('viewMypage').classList.add('active');
+    if (searchOpen) toggleSearch();
+    document.getElementById('filterRow').style.display = 'none';
+    
+    tabTitleEl.textContent = 'MYPAGE';
+    backArrowEl.classList.remove('hidden');
+    
+    if (isRegistered) {
+      document.getElementById('authSection').style.display = 'none';
+      document.getElementById('profileSection').classList.remove('hidden');
+      document.getElementById('bookmarkContainer').classList.remove('hidden');
+      document.getElementById('bookmarkContainer').classList.add('flex');
+      renderFavList();
+      updateMyStats();
+    } else {
+      document.getElementById('authSection').style.display = 'block';
+      document.getElementById('profileSection').classList.add('hidden');
+      document.getElementById('bookmarkContainer').classList.add('hidden');
+    }
+  }
+}
+
+// ─── SEARCH TOGGLE ────────────────────────────────────────────────
+function toggleSearch() {
+  searchOpen = !searchOpen;
+  const wrap = document.getElementById('searchWrap');
+  wrap.classList.toggle('open', searchOpen);
+  if (searchOpen) {
+    setTimeout(() => document.getElementById('searchInput').focus(), 250);
+  } else {
+    document.getElementById('searchInput').value = '';
+    searchQuery = '';
+    applyFilters();
+  }
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────
+renderFilters();
+applyFilters();
+</script>
+</body>
+</html>
